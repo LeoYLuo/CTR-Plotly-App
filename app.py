@@ -346,7 +346,9 @@ def update_model_plot(model, metrics):
 server = app.server  # <-- important for deployment!
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=8080)
+    import os
+    port = int(os.environ.get("PORT", 8050))
+    app.run_server(host="0.0.0.0", port=port)
 
 
 # In[ ]:
