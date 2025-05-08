@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[13]:
+# In[41]:
 
 
 import plotly.express as px
@@ -14,7 +14,7 @@ from dash import Dash, dcc, html, Input, Output
 import numpy as np
 
 
-# In[44]:
+# In[42]:
 
 
 #LOAD THE DATA
@@ -25,7 +25,7 @@ categorical_cols = data.select_dtypes(include='object').columns
 numerical_cols = data.select_dtypes(include=['int', 'float']).columns.drop(['id', 'click'])
 
 
-# In[45]:
+# In[43]:
 
 
 # LOAD THE LOGISTIC MODEL DATA
@@ -56,7 +56,7 @@ log_importance_fig = px.bar(log_feature_importance_sorted, x='Importance', y='Fe
                             labels={'Importance': 'Importance Score', 'Feature': 'Feature'}, height=700)
 
 
-# In[46]:
+# In[44]:
 
 
 # BASELINE MODEL
@@ -81,7 +81,7 @@ baseline_cm_fig = go.Figure(data=go.Heatmap(z=np.flipud(baseline_cm), x=['Pred 0
 baseline_cm_fig.update_layout(title='Confusion Matrix (Baseline Model)', xaxis_title='Predicted', yaxis_title='Actual')
 
 
-# In[47]:
+# In[45]:
 
 
 # LOAD THE NEURAL NETWORK DATA
@@ -107,7 +107,7 @@ mlp_cm_fig = go.Figure(data=go.Heatmap(z=np.flipud(mlp_cm), x=['Pred 0', 'Pred 1
 mlp_cm_fig.update_layout(title='Confusion Matrix (Neural Network (MLP))', xaxis_title='Predicted', yaxis_title='Actual')
 
 
-# In[48]:
+# In[46]:
 
 
 # LOAD THE RANDOM FOREST MODEL DATA
@@ -136,6 +136,69 @@ rf_cm_fig.update_layout(title='Confusion Matrix (Random forest)', xaxis_title='P
 
 rf_importance_fig = px.bar(rf_feature_importance_sorted, x='Importance', y='Feature', orientation='h', title='Random Forest Feature Importance', 
                             labels={'Importance': 'Importance Score', 'Feature': 'Feature'}, height=700)
+
+
+# In[47]:
+
+
+# LOAD THE XGBOOST MODEL DATA
+xg_results_df = pd.read_csv("xg_results_df.csv")
+xg_feature_importance = pd.read_csv("xg_feature_importance.csv")
+xg_y_test = xg_results_df['y_test']
+xg_test_pred_proba = xg_results_df['test_pred_proba']
+xg_test_pred = xg_results_df['test_pred']
+
+xg_fpr, xg_tpr, xg_thresholds = roc_curve(xg_y_test, xg_test_pred_proba)
+xg_auc_score = roc_auc_score(xg_y_test, xg_test_pred_proba)
+xg_feature_importance_sorted = xg_feature_importance.sort_values(by='Importance')
+
+# Build the Plotly Figures
+xg_roc_fig = go.Figure()
+xg_roc_fig.add_trace(go.Scatter(x=xg_fpr, y=xg_tpr, mode='lines', name=f'ROC curve (AUC = {xg_auc_score:.4f})', line=dict(color='orange')))
+xg_roc_fig.add_trace(go.Scatter(x=[0,1], y=[0,1], mode='lines', name='XGBoost Classifier', line=dict(color='navy', dash='dash')))
+xg_roc_fig.update_layout(title='ROC Curve of CGBoost Classifier', xaxis_title='False Positive Rate', yaxis_title='True Positive Rate')
+
+xg_cm = confusion_matrix(xg_y_test, xg_test_pred)
+labels = np.array([['TN', 'FP'], ['FN', 'TP']])
+
+xg_cm_fig = go.Figure(data=go.Heatmap(z=np.flipud(xg_cm), x=['Pred 0', 'Pred 1'], y=['True 1', 'True 0'], colorscale='Blues', text=np.flipud(xg_cm),
+                                      texttemplate="%{text}", hoverinfo='text'))
+xg_cm_fig.update_layout(title='Confusion Matrix (XGBoost)', xaxis_title='Predicted', yaxis_title='Actual')
+
+xg_importance_fig = px.bar(xg_feature_importance_sorted, x='Importance', y='Feature', orientation='h', title='XGBoost Feature Importance', 
+                            labels={'Importance': 'Importance Score', 'Feature': 'Feature'}, height=700)
+
+
+# In[48]:
+
+
+# ensemble model
+fpr_ensemble = [0.0,
+ 0.0020167433804307733,
+ 0.2073075874456722,
+ 0.32594261703526695,
+ 0.5125856013343384,
+ 1.0]
+tpr_ensemble = [0.0,
+ 0.0045860678421760104,
+ 0.47797896734403417,
+ 0.6573100340001582,
+ 0.8043804854906302,
+ 1.0]
+auc_ensemble = 0.6930278932789068
+
+ensemble_roc_fig = go.Figure()
+ensemble_roc_fig.add_trace(go.Scatter(x=fpr_ensemble, y=tpr_ensemble, mode='lines', name=f'Ensemble ROC (AUC={auc_ensemble:.3f})',line=dict(color='orange')))
+ensemble_roc_fig.add_trace(go.Scatter(x=[0,1], y=[0,1], mode='lines', name='Random Classifier', line=dict(dash='dash', color='gray')))
+ensemble_roc_fig.update_layout(title='ROC Curve - Majority Vote Ensemble', xaxis_title='False Positive Rate', yaxis_title='True Positive Rate',
+    height=600)
+
+ensemble_cm = np.array([[168199,  81213],
+       [ 17573,  33015]])
+
+ensemble_cm_fig = go.Figure(data=go.Heatmap(z=np.flipud(ensemble_cm), x=['Pred 0', 'Pred 1'], y=['True 1', 'True 0'], colorscale='Blues',
+    text=np.flipud(ensemble_cm),texttemplate="%{text}"))
+ensemble_cm_fig.update_layout(title='Confusion Matrix - Majority Vote Ensemble',xaxis_title='Predicted',yaxis_title='Actual')
 
 
 # In[49]:
@@ -217,7 +280,9 @@ def render_content(tab):
                     {'label': 'Baseline', 'value': 'baseline'},
                     {'label': 'Logistic Regression', 'value': 'logistic'},
                     {'label': 'Neural Network', 'value': 'neuralnetwork'},
-                    {'label': 'Random Forest', 'value': 'randomforest'}
+                    {'label': 'Random Forest', 'value': 'randomforest'},
+                    {'label': 'XGBoost Classifier', 'value': 'xgboost'},
+                    {'label': 'Majority Vote Ensemble', 'value': 'ensemble'}
                 ],
                 value='logistic',
                 clearable=False
@@ -227,7 +292,7 @@ def render_content(tab):
                 options=[
                     {'label': 'AUC', 'value': 'auc'},
                     {'label': 'Confusion Matrix', 'value': 'confusion'},
-                    {'label': 'Feature Importance (N/A for baseline and MLP)', 'value': 'importance'}
+                    {'label': 'Feature Importance (N/A for Baseline, MLP, Ensemble Model)', 'value': 'importance'}
                 ],
                 value='auc'
             ),
@@ -338,17 +403,30 @@ def update_model_plot(model, metrics):
             return rf_cm_fig
         else:
             return rf_importance_fig
+    elif model == 'xgboost':
+        if metrics == 'auc':
+            return xg_roc_fig
+        elif metrics == 'confusion':
+            return xg_cm_fig
+        else:
+            return xg_importance_fig
+    elif model == 'ensemble':
+        if metrics == 'auc':
+            return ensemble_roc_fig
+        elif metrics == 'confusion':
+            return ensemble_cm_fig
+        else:
+            return go.Figure()
     else:
         return go.Figure()
 
 # Run app
-# app.run(mode='inline')
+#app.run(mode='inline')
+
 server = app.server  # <-- important for deployment!
 
 if __name__ == "__main__":
-    import os
-    port = int(os.environ.get("PORT", 8050))
-    app.run_server(host="0.0.0.0", port=port)
+    app.run(host='0.0.0.0', port=8080)
 
 
 # In[ ]:
